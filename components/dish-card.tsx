@@ -1,8 +1,7 @@
-import { useState, useCallback, useEffect, useRef, useImperativeHandle } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
+import { useState, useCallback, useRef, useImperativeHandle } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import useStore from '@/store/use-store';
-import { RecipeSheet } from '@/components/recipe-sheet';
 import type { Dish } from '@/data/dishes';
 
 type DishCardProps = {
@@ -12,36 +11,27 @@ type DishCardProps = {
 };
 
 export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) {
-  const [sheetVisible, setSheetVisible] = useState(false);
+  const [flipped, setFlipped] = useState(false);
+  const flipAnim = useRef(new Animated.Value(0)).current;
 
-  const openSheet = useCallback(() => {
-    setSheetVisible(true);
-    onSheetStateChange?.(true);
-  }, [onSheetStateChange]);
+  const doFlip = useCallback(() => {
+    const toValue = flipped ? 0 : 1;
+    setFlipped(!flipped);
+    onSheetStateChange?.(!flipped);
+    Animated.timing(flipAnim, {
+      toValue,
+      duration: 500,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [flipped, flipAnim, onSheetStateChange]);
 
-  const closeSheet = useCallback(() => {
-    setSheetVisible(false);
-    onSheetStateChange?.(false);
-  }, [onSheetStateChange]);
-
-  useImperativeHandle(sheetRef, () => openSheet);
+  useImperativeHandle(sheetRef, () => doFlip);
 
   const addFavorite = useStore((s) => s.addFavorite);
   const removeFavorite = useStore((s) => s.removeFavorite);
   const showToast = useStore((s) => s.showToast);
   const favorite = useStore((s) => s.favorites.some((d) => d.id === dish.id));
-
-  const cardOpacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    cardOpacity.setValue(0);
-    Animated.timing(cardOpacity, {
-      toValue: 1,
-      duration: 400,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [dish.id]);
 
   const handleFavorite = useCallback(() => {
     if (favorite) {
@@ -55,11 +45,26 @@ export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) 
 
   const themeColor = dish.color || '#7A8470';
 
+  const frontRotate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
+  const backRotate = flipAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['180deg', '360deg'],
+  });
+
   return (
-    <>
-      <Animated.View style={[styles.card, { opacity: cardOpacity }]}>
+    <View style={styles.card}>
+      <Animated.View
+        style={[
+          styles.face,
+          styles.front,
+          { transform: [{ rotateY: frontRotate }] },
+        ]}
+        pointerEvents={flipped ? 'none' : 'auto'}>
         <View style={[styles.hero, { backgroundColor: themeColor }]}>
-          <Text style={styles.heroEmoji}>{dish.emoji || '\uD83C\uDF7D\uFE0F'}</Text>
+          <Text style={styles.heroEmoji}>{dish.emoji || '🍽️'}</Text>
           <TouchableOpacity onPress={handleFavorite} style={styles.favBtn} activeOpacity={0.7}>
             <Ionicons
               name={favorite ? 'heart' : 'heart-outline'}
@@ -91,19 +96,76 @@ export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) 
               </View>
             ))}
           </View>
+
+          <TouchableOpacity style={styles.flipBtn} onPress={doFlip} activeOpacity={0.85}>
+            <Text style={styles.flipBtnText}>查看做法</Text>
+          </TouchableOpacity>
         </View>
       </Animated.View>
 
-      <RecipeSheet visible={sheetVisible} dish={dish} onClose={closeSheet} />
-    </>
+      <Animated.View
+        style={[
+          styles.face,
+          styles.back,
+          { transform: [{ rotateY: backRotate }] },
+        ]}>
+        <View style={[styles.backHeader, { backgroundColor: themeColor }]}>
+          <TouchableOpacity onPress={doFlip} style={styles.backCloseBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={20} color="#F0EDE4" />
+          </TouchableOpacity>
+          <Text style={styles.backTitle} numberOfLines={1}>{dish.name}</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        <ScrollView
+          style={styles.backScroll}
+          showsVerticalScrollIndicator
+          contentContainerStyle={styles.backScrollContent}>
+          <Text style={styles.backSectionLabel}>食材</Text>
+          <View style={styles.backIngredientsRow}>
+            {dish.ingredients?.map((ing) => (
+              <View key={ing} style={styles.backIngredientChip}>
+                <Text style={styles.backIngredientText}>{ing}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.backDivider} />
+
+          <Text style={styles.backSectionLabel}>做法步骤</Text>
+          {dish.steps?.map((step, i) => (
+            <View key={i} style={styles.stepItem}>
+              <View style={styles.stepNumber}>
+                <Text style={styles.stepNumberText}>{String(i + 1).padStart(2, '0')}</Text>
+              </View>
+              <Text style={styles.stepContent}>{step}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    minHeight: 400,
+  },
+  face: {
     backgroundColor: '#F0EDE4',
-    marginHorizontal: 20,
+    backfaceVisibility: 'hidden',
     overflow: 'hidden',
+  },
+  front: {
+    zIndex: 1,
+  },
+  back: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
   },
   hero: {
     height: 150,
@@ -177,4 +239,94 @@ const styles = StyleSheet.create({
     borderColor: '#D5CFC4',
   },
   ingredientText: { fontSize: 13, color: '#5A5549' },
+  flipBtn: {
+    marginTop: 18,
+    backgroundColor: '#1B1B1B',
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flipBtnText: {
+    color: '#F0EDE4',
+    fontSize: 14,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+
+  backHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backCloseBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '400',
+    color: '#F0EDE4',
+    fontFamily: 'Georgia',
+    textAlign: 'center',
+    letterSpacing: -0.2,
+  },
+  backScroll: {
+    flex: 1,
+  },
+  backScrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  backSectionLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#7A8470',
+    marginBottom: 10,
+    letterSpacing: 1.5,
+  },
+  backIngredientsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 16,
+  },
+  backIngredientChip: {
+    backgroundColor: '#E8E4D9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#D5CFC4',
+  },
+  backIngredientText: { fontSize: 12, color: '#5A5549' },
+  backDivider: {
+    height: 1,
+    backgroundColor: '#D5CFC4',
+    marginBottom: 16,
+  },
+  stepItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 18,
+  },
+  stepNumber: {
+    marginRight: 14,
+    marginTop: 1,
+  },
+  stepNumberText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#7A8470',
+    fontFamily: 'Georgia',
+  },
+  stepContent: {
+    flex: 1,
+    fontSize: 15,
+    color: '#3D3A35',
+    lineHeight: 24,
+    fontWeight: '400',
+  },
 });

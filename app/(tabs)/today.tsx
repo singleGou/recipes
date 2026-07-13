@@ -1,8 +1,10 @@
-import { useState, useCallback, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import { useState, useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, Animated, Easing, Dimensions, PanResponder } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DishCard } from '@/components/dish-card';
-import { dishes } from '@/data/dishes';
+import { dishes, type Dish } from '@/data/dishes';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 function getRandomDish(excludeId?: number) {
   const filtered = dishes.filter((d) => d.id !== excludeId);
@@ -12,52 +14,86 @@ function getRandomDish(excludeId?: number) {
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const [currentDish, setCurrentDish] = useState(() => getRandomDish());
+  const [nextDish, setNextDish] = useState<Dish>(() => getRandomDish(currentDish?.id));
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetRef = useRef<(() => void) | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
-  const handleRefresh = useCallback(() => {
-    setCurrentDish((prev) => getRandomDish(prev?.id));
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  }, []);
+  const frontX = useRef(new Animated.Value(0)).current;
+  const backScale = useRef(new Animated.Value(0.95)).current;
+  const nextDishRef = useRef(nextDish);
+  nextDishRef.current = nextDish;
+
+  const panResponder = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 15 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2,
+    onPanResponderMove: (_, g) => frontX.setValue(g.dx),
+    onPanResponderRelease: (_, g) => {
+      if (Math.abs(g.dx) > 50) {
+        const flyX = g.dx > 0 ? SCREEN_WIDTH * 1.2 : -SCREEN_WIDTH * 1.2;
+        Animated.parallel([
+          Animated.timing(frontX, {
+            toValue: flyX,
+            duration: 250,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: false,
+          }),
+          Animated.timing(backScale, {
+            toValue: 1,
+            duration: 300,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          const newTop = nextDishRef.current;
+          setCurrentDish(newTop);
+          setNextDish(getRandomDish(newTop.id));
+          requestAnimationFrame(() => {
+            frontX.setValue(0);
+            backScale.setValue(0.95);
+          });
+        });
+      } else {
+        Animated.spring(frontX, { toValue: 0, friction: 7, tension: 80, useNativeDriver: false }).start();
+      }
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(frontX, { toValue: 0, friction: 7, tension: 80, useNativeDriver: false }).start();
+    },
+  })).current;
 
   return (
     <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 24 }]}>
+        <Text style={styles.badge}>今日推荐</Text>
+        <Text style={styles.title}>今天吃什么？</Text>
+        <Text style={styles.subtitle}>每天一道家常美味，告别选择困难</Text>
+      </View>
+
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: 120 }}
+        contentContainerStyle={styles.scrollContent}
         scrollEnabled={!sheetOpen}
         showsVerticalScrollIndicator>
-        <View style={styles.header}>
-          <Text style={styles.badge}>今日推荐</Text>
-          <Text style={styles.title}>今天吃什么？</Text>
-          <Text style={styles.subtitle}>每天一道家常美味，告别选择困难</Text>
+        <View style={styles.cardArea}>
+          <Animated.View style={[styles.backCard, { transform: [{ scale: backScale }] }]} pointerEvents="none">
+            {nextDish && <DishCard dish={nextDish} sheetRef={sheetRef} onSheetStateChange={setSheetOpen} />}
+          </Animated.View>
+
+          <Animated.View
+            key={currentDish?.id}
+            {...panResponder.panHandlers}
+            style={[styles.topCard, { transform: [{ translateX: frontX }] }]}>
+            {currentDish && (
+              <DishCard dish={currentDish} sheetRef={sheetRef} onSheetStateChange={setSheetOpen} />
+            )}
+          </Animated.View>
         </View>
 
-        {currentDish && (
-          <DishCard
-            dish={currentDish}
-            sheetRef={sheetRef}
-            onSheetStateChange={setSheetOpen}
-          />
-        )}
+        <View style={styles.swipeHint}>
+          <Text style={styles.swipeHintText}>← 左右滑动换菜 →</Text>
+        </View>
       </ScrollView>
-
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity
-          style={styles.viewBtn}
-          onPress={() => sheetRef.current?.()}
-          activeOpacity={0.85}>
-          <Text style={styles.viewBtnText}>查看做法</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.shuffleBtn}
-          onPress={handleRefresh}
-          activeOpacity={0.85}>
-          <Text style={styles.shuffleBtnText}>换一道</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -65,6 +101,7 @@ export default function TodayScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#E8E4D9' },
   scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 24 },
   header: { paddingHorizontal: 28, paddingBottom: 24 },
   badge: {
     fontSize: 10,
@@ -81,35 +118,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Georgia',
   },
   subtitle: { fontSize: 14, color: '#8A8478', marginTop: 6 },
-  bottomBar: {
+  cardArea: {
+    marginHorizontal: 20,
+    position: 'relative',
+  },
+  backCard: {},
+  topCard: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: '#E8E4D9',
-    borderTopWidth: 1,
-    borderTopColor: '#D5CFC4',
   },
-  viewBtn: {
-    flex: 1,
-    paddingVertical: 14,
+  swipeHint: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1B1B1B',
+    marginTop: 12,
+    paddingBottom: 4,
   },
-  viewBtnText: { color: '#F0EDE4', fontSize: 14, fontWeight: '500', letterSpacing: 0.5 },
-  shuffleBtn: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E8E4D9',
-    borderWidth: 1,
-    borderColor: '#D5CFC4',
-  },
-  shuffleBtnText: { color: '#1B1B1B', fontSize: 14, fontWeight: '500', letterSpacing: 0.5 },
+  swipeHintText: { fontSize: 12, color: '#8A8478' },
 });
