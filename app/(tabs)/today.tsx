@@ -27,6 +27,7 @@ export default function TodayScreen() {
 
   const frontX = useRef(new Animated.Value(0)).current;
   const backScale = useRef(new Animated.Value(0.95)).current;
+  const backY = useRef(new Animated.Value(10)).current;
   const nextDishRef = useRef(nextDish);
   nextDishRef.current = nextDish;
 
@@ -49,6 +50,12 @@ export default function TodayScreen() {
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
+          Animated.timing(backY, {
+            toValue: 0,
+            duration: 300,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
         ]).start(() => {
           const newTop = nextDishRef.current;
           setCurrentDish(newTop);
@@ -56,6 +63,7 @@ export default function TodayScreen() {
           requestAnimationFrame(() => {
             frontX.setValue(0);
             backScale.setValue(0.95);
+            backY.setValue(10);
           });
         });
       } else {
@@ -76,7 +84,7 @@ export default function TodayScreen() {
       </View>
 
       <View style={[styles.cardArea, { minHeight: minCardHeight }]}>
-        <Animated.View style={[styles.backCard, { transform: [{ scale: backScale }] }]} pointerEvents="none">
+          <Animated.View style={[styles.backCard, { transform: [{ scale: backScale }, { translateY: backY }] }]} pointerEvents="none">
           {nextDish && <DishCard dish={nextDish} sheetRef={sheetRef} onSheetStateChange={setSheetOpen} />}
         </Animated.View>
 
@@ -122,7 +130,7 @@ const styles = StyleSheet.create({
   },
   backCard: {
     position: 'absolute',
-    top: 10,
+    top: 0,
     left: 0,
     right: 0,
     bottom: 0,
