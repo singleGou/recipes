@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { StyleSheet, Text, View, ScrollView, Animated, Easing, Dimensions, PanResponder } from 'react-native';
+import { useState, useRef, useMemo } from 'react';
+import { StyleSheet, Text, View, Animated, Easing, Dimensions, PanResponder, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DishCard } from '@/components/dish-card';
 import { dishes, type Dish } from '@/data/dishes';
@@ -13,11 +13,17 @@ function getRandomDish(excludeId?: number) {
 
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
+  const minCardHeight = useMemo(() => {
+    const headerEstimate = insets.top + 140;
+    const swipeHintEstimate = 40;
+    return screenHeight - headerEstimate - swipeHintEstimate - insets.bottom - 60;
+  }, [screenHeight, insets]);
+
   const [currentDish, setCurrentDish] = useState(() => getRandomDish());
   const [nextDish, setNextDish] = useState<Dish>(() => getRandomDish(currentDish?.id));
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetRef = useRef<(() => void) | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
 
   const frontX = useRef(new Animated.Value(0)).current;
   const backScale = useRef(new Animated.Value(0.95)).current;
@@ -69,39 +75,30 @@ export default function TodayScreen() {
         <Text style={styles.subtitle}>每天一道家常美味，告别选择困难</Text>
       </View>
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        scrollEnabled={!sheetOpen}
-        showsVerticalScrollIndicator>
-        <View style={styles.cardArea}>
-          <Animated.View style={[styles.backCard, { transform: [{ scale: backScale }] }]} pointerEvents="none">
-            {nextDish && <DishCard dish={nextDish} sheetRef={sheetRef} onSheetStateChange={setSheetOpen} />}
-          </Animated.View>
+      <View style={[styles.cardArea, { minHeight: minCardHeight }]}>
+        <Animated.View style={[styles.backCard, { transform: [{ scale: backScale }] }]} pointerEvents="none">
+          {nextDish && <DishCard dish={nextDish} sheetRef={sheetRef} onSheetStateChange={setSheetOpen} />}
+        </Animated.View>
 
-          <Animated.View
-            key={currentDish?.id}
-            {...panResponder.panHandlers}
-            style={[styles.topCard, { transform: [{ translateX: frontX }] }]}>
-            {currentDish && (
-              <DishCard dish={currentDish} sheetRef={sheetRef} onSheetStateChange={setSheetOpen} />
-            )}
-          </Animated.View>
-        </View>
+        <Animated.View
+          key={currentDish?.id}
+          {...panResponder.panHandlers}
+          style={[styles.topCard, { transform: [{ translateX: frontX }] }]}>
+          {currentDish && (
+            <DishCard dish={currentDish} sheetRef={sheetRef} onSheetStateChange={setSheetOpen} />
+          )}
+        </Animated.View>
+      </View>
 
-        <View style={styles.swipeHint}>
-          <Text style={styles.swipeHintText}>← 左右滑动换菜 →</Text>
-        </View>
-      </ScrollView>
+      <View style={styles.swipeHint}>
+        <Text style={styles.swipeHintText}>← 左右滑动换菜 →</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#E8E4D9' },
-  scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 24 },
   header: { paddingHorizontal: 28, paddingBottom: 24 },
   badge: {
     fontSize: 10,
@@ -119,20 +116,28 @@ const styles = StyleSheet.create({
   },
   subtitle: { fontSize: 14, color: '#8A8478', marginTop: 6 },
   cardArea: {
+    flex: 1,
     marginHorizontal: 20,
     position: 'relative',
   },
-  backCard: {},
+  backCard: {
+    position: 'absolute',
+    top: 10,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   topCard: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    bottom: 0,
   },
   swipeHint: {
     alignItems: 'center',
-    marginTop: 12,
-    paddingBottom: 4,
+    paddingVertical: 8,
+    marginBottom: 8,
   },
   swipeHintText: { fontSize: 12, color: '#8A8478' },
 });

@@ -74,7 +74,10 @@ export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) 
           </TouchableOpacity>
         </View>
 
-        <View style={styles.body}>
+        <ScrollView
+          style={styles.frontScroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.frontScrollContent}>
           <Text style={styles.dishName}>{dish.name}</Text>
           <Text style={styles.description}>{dish.description}</Text>
 
@@ -96,11 +99,11 @@ export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) 
               </View>
             ))}
           </View>
+        </ScrollView>
 
-          <TouchableOpacity style={styles.flipBtn} onPress={doFlip} activeOpacity={0.85}>
-            <Text style={styles.flipBtnText}>查看做法</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.flipBtn} onPress={doFlip} activeOpacity={0.85}>
+          <Text style={styles.flipBtnText}>查看做法</Text>
+        </TouchableOpacity>
       </Animated.View>
 
       <Animated.View
@@ -149,14 +152,20 @@ export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) 
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 400,
+    flex: 1,
   },
   face: {
     backgroundColor: '#F0EDE4',
     backfaceVisibility: 'hidden',
     overflow: 'hidden',
+    flex: 1,
   },
   front: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 1,
   },
   back: {
@@ -182,7 +191,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  body: { padding: 20 },
+  frontScroll: {
+    flex: 1,
+  },
+  frontScrollContent: {
+    padding: 20,
+    paddingBottom: 8,
+  },
   dishName: {
     fontSize: 22,
     fontWeight: '400',
