@@ -6,6 +6,8 @@ import type { Dish } from '@/data/dishes';
 type RecipeState = {
   favorites: Dish[];
   customDishes: Dish[];
+  todayMenu: Dish[];
+  todayMenuDate: string;
   toastMessage: string;
   toastVisible: boolean;
 
@@ -16,14 +18,29 @@ type RecipeState = {
   addCustomDish: (dish: Omit<Dish, 'id' | 'isCustom'>) => void;
   removeCustomDish: (dishId: number) => void;
 
+  addTodayDish: (dish: Dish) => void;
+  removeTodayDish: (dishId: number) => void;
+  clearTodayMenu: () => void;
+  rolloverTodayMenu: () => void;
+
   showToast: (message: string) => void;
 };
+
+function getTodayKey() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 const useStore = create<RecipeState>()(
   persist(
     (set, get) => ({
       favorites: [],
       customDishes: [],
+      todayMenu: [],
+      todayMenuDate: getTodayKey(),
       toastMessage: '',
       toastVisible: false,
 
@@ -53,6 +70,33 @@ const useStore = create<RecipeState>()(
         set((state) => ({
           customDishes: state.customDishes.filter((d) => d.id !== dishId),
         })),
+
+      addTodayDish: (dish) =>
+        set((state) => {
+          const todayMenu = state.todayMenuDate === getTodayKey() ? state.todayMenu : [];
+          if (todayMenu.some((item) => item.id === dish.id)) {
+            return { todayMenu, todayMenuDate: getTodayKey() };
+          }
+          return { todayMenu: [...todayMenu, dish], todayMenuDate: getTodayKey() };
+        }),
+
+      removeTodayDish: (dishId) =>
+        set((state) => ({
+          todayMenu:
+            state.todayMenuDate === getTodayKey()
+              ? state.todayMenu.filter((dish) => dish.id !== dishId)
+              : [],
+          todayMenuDate: getTodayKey(),
+        })),
+
+      clearTodayMenu: () => set({ todayMenu: [], todayMenuDate: getTodayKey() }),
+
+      rolloverTodayMenu: () =>
+        set((state) =>
+          state.todayMenuDate === getTodayKey()
+            ? state
+            : { todayMenu: [], todayMenuDate: getTodayKey() }
+        ),
 
       showToast: (message) => {
         set({ toastMessage: message, toastVisible: true });

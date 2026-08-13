@@ -8,9 +8,19 @@ type DishCardProps = {
   dish: Dish;
   sheetRef: React.MutableRefObject<(() => void) | null>;
   onSheetStateChange?: (open: boolean) => void;
+  actionLabel?: string;
+  onAction?: () => void;
+  actionDisabled?: boolean;
 };
 
-export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) {
+export function DishCard({
+  dish,
+  sheetRef,
+  onSheetStateChange,
+  actionLabel,
+  onAction,
+  actionDisabled = false,
+}: DishCardProps) {
   const [flipped, setFlipped] = useState(false);
   const flipAnim = useRef(new Animated.Value(0)).current;
 
@@ -41,7 +51,7 @@ export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) 
       addFavorite(dish);
       showToast('已加入收藏');
     }
-  }, [dish.id, favorite, addFavorite, removeFavorite, showToast]);
+  }, [dish, favorite, addFavorite, removeFavorite, showToast]);
 
   const themeColor = dish.color || '#7A8470';
 
@@ -101,9 +111,26 @@ export function DishCard({ dish, sheetRef, onSheetStateChange }: DishCardProps) 
           </View>
         </ScrollView>
 
-        <TouchableOpacity style={styles.flipBtn} onPress={doFlip} activeOpacity={0.85}>
-          <Text style={styles.flipBtnText}>查看做法</Text>
-        </TouchableOpacity>
+        <View style={styles.actionsRow}>
+          {onAction && actionLabel && (
+            <TouchableOpacity
+              style={[styles.actionBtn, actionDisabled && styles.actionBtnDisabled]}
+              onPress={onAction}
+              activeOpacity={0.82}
+              disabled={actionDisabled}>
+              <Ionicons name={actionDisabled ? 'checkmark' : 'add'} size={17} color="#F0EDE4" />
+              <Text style={styles.actionBtnText}>{actionLabel}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.flipBtn, onAction && styles.flipBtnSecondary]}
+            onPress={doFlip}
+            activeOpacity={0.85}>
+            <Text style={[styles.flipBtnText, onAction && styles.flipBtnTextSecondary]}>
+              查看做法
+            </Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
 
       <Animated.View
@@ -254,18 +281,49 @@ const styles = StyleSheet.create({
     borderColor: '#D5CFC4',
   },
   ingredientText: { fontSize: 13, color: '#5A5549' },
-  flipBtn: {
+  actionsRow: {
     marginTop: 18,
+    flexDirection: 'row',
+    minHeight: 48,
+  },
+  actionBtn: {
+    flex: 1.35,
     backgroundColor: '#1B1B1B',
-    paddingVertical: 14,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
+  },
+  actionBtnText: {
+    color: '#F0EDE4',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.35,
+  },
+  actionBtnDisabled: {
+    backgroundColor: '#7A8470',
+  },
+  flipBtn: {
+    flex: 1,
+    backgroundColor: '#1B1B1B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+  },
+  flipBtnSecondary: {
+    backgroundColor: '#E8E4D9',
+    borderWidth: 1,
+    borderColor: '#D5CFC4',
+    borderLeftWidth: 0,
   },
   flipBtnText: {
     color: '#F0EDE4',
     fontSize: 14,
     fontWeight: '500',
     letterSpacing: 0.5,
+  },
+  flipBtnTextSecondary: {
+    color: '#5A5549',
   },
 
   backHeader: {
